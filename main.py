@@ -1,17 +1,9 @@
 import sys
 import os
-from PyQt5.QtWidgets import QMainWindow, QApplication, QPushButton, QVBoxLayout, QHBoxLayout, QFileDialog, QLabel, QWidget
-from PyQt5.QtGui import QPixmap, QPainter, QPen, QBrush, QColor, QPolygon
-from PyQt5.QtCore import Qt, QRect
-from PyQt5.QtWidgets import QSizePolicy, QListWidget, QTextEdit
-from PyQt5.QtGui import QImage, QFont
+from PyQt5.QtWidgets import QMainWindow, QApplication, QPushButton, QVBoxLayout, QHBoxLayout, QFileDialog, QLabel, QWidget, QSizePolicy, QListWidget, QTextEdit, QMessageBox, QShortcut
+from PyQt5.QtGui import QPixmap, QFont, QKeySequence
+from PyQt5.QtCore import Qt, QRect, QPoint
 from Clickablebox import ClickableImageLabel
-from PyQt5.QtWidgets import QScrollArea
-from PyQt5.QtGui import QPalette
-from PyQt5.QtCore import QPoint
-from PyQt5.QtWidgets import QMessageBox
-from PyQt5.QtGui import QKeySequence
-from PyQt5.QtWidgets import QShortcut
 
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
@@ -19,11 +11,13 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("Image Annotation Tool")
 
+        self.cls_dict = {'ga':0, 'gi':1, 'ma':2, 'mi':3, 'rc':4, 'nc':5}
+        self.reverse_cls_dict = {0:'ga', 1:'gi', 2:'ma', 3:'mi', 4:'rc', 5:'nc'}
+        self.img_size_width_height = None
         self.image_dir = None
         self.image_annotations = {}
         self.image_files = []
         self.current_image_index = -1
-        self.bboxes = []
         self.selected_bbox = None
         self.resizing = False
         self.image_label = QLabel(self)
@@ -186,13 +180,19 @@ class MainWindow(QMainWindow):
             rect = (QPoint(x, y), QPoint(x + w, y + h), '', 'red')
             self.image_label.clicked_rect.append(rect)
         elif len(splited_string) == 5:
-            x, y, w, h, id = map(int, bbox.replace('(', '').replace(')', '').split(','))
+            splitted_bbox = bbox.replace('(', '').replace(')', '').split(',')
+            x, y, w, h = map(int, splitted_bbox[:-1])  # convert all but the last item to int
+            id = splitted_bbox[-1]  # keep the last item (id) as string
             rect = (QPoint(x, y), QPoint(x + w, y + h), id, 'red')
             self.image_label.clicked_rect.append(rect)
 
         self.image_label.update()
 
     def export_labels(self, btn=False):
+        image_file = self.image_files[self.current_image_index]
+        source = os.path.join(self.image_dir, image_file)
+
+        scale_x, scale_y, vertical_offset = self.calculate_scale_and_offset(source)
         if btn:
             options = QFileDialog.Options()
             options |= QFileDialog.DontUseNativeDialog
@@ -218,8 +218,9 @@ class MainWindow(QMainWindow):
                         msg.exec_()
                         continue
                     bbox, id_ = annotation.rsplit(',', 1)
-                    x, y, w, h = map(int, bbox.strip('()').split(','))
-                    f.write(f"{file},{id_.strip()},{x},{y},{w},{h},1,-1,-1,-1\n")
+                    l, t, w, h = map(int, bbox.strip('()').split(','))
+                    yolo_x, yolo_y, yolo_w, yolo_h  = self.convert_yolo_format(scale_x, scale_y, vertical_offset, l, t, w, h)
+                    f.write(f"{file}, {self.cls_dict[id_.strip()]} {yolo_x} {yolo_y} {yolo_w} {yolo_h}\n")
     
     def enter_id(self):
         self.id = self.id_widget.toPlainText()
@@ -293,18 +294,30 @@ class MainWindow(QMainWindow):
         if file_name:
             with open(file_name, 'r') as f:
                 for line in f:
-                    file, id_, x, y, w, h, _, _, _, _ = line.split(',')
+                    file, lbl = line.split(', ')
+                    id_, x, y, w, h = lbl.split(' ')
+                    id_ = self.reverse_cls_dict[int(id_)]
+                    image_file = self.image_files[self.current_image_index]
+                    source = os.path.join(self.image_dir, image_file)
+
+                    scale_x, scale_y, vertical_offset = self.calculate_scale_and_offset(source)
+                    left, top, width, height= self.convert_yolo_format(scale_x, scale_y, vertical_offset, float(x), float(y), float(w), float(h), reverse=True)
                     if file not in self.image_annotations:
-                        self.image_annotations[file] = [f"({x}, {y}, {w}, {h}), {id_}"]
+                        self.image_annotations[file] = [f"({left}, {top}, {width}, {height}), {id_}"]
                     else:
-                        self.image_annotations[file].append(f"({x}, {y}, {w}, {h}), {id_}")
+                        self.image_annotations[file].append(f"({left}, {top}, {width}, {height}), {id_}")
             self.load_image()
 
     def load_image(self):
+        import cv2
         print(self.image_label.rectangles)
         self.image_label.clicked_rect = []
         if self.image_files:
             image_file = self.image_files[self.current_image_index]
+            if image_file is not None:
+                img = cv2.imread(os.path.join(self.image_dir, image_file))
+                org_size_h, org_size_w, _ = img.shape
+                self.img_size_width_height = (org_size_w, org_size_h)
             self.file_label.setText(f"Current file: {image_file}")
             pixmap = QPixmap(os.path.join(self.image_dir, image_file))
             scaled_pixmap = pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio) 
@@ -320,8 +333,8 @@ class MainWindow(QMainWindow):
                         x, y, w, h = map(int, splited_string)
                         rect = (QPoint(x, y), QPoint(x + w, y + h))
                     else:
-                        x, y, w, h, id = map(int, splited_string)
-                        rect = (QPoint(x, y), QPoint(x + w, y + h), int(id))
+                        x, y, w, h = map(int, splited_string[:-1])
+                        rect = (QPoint(x, y), QPoint(x + w, y + h), splited_string[-1])
                     self.image_label.rectangles.append(rect)
                     print("after append", self.image_label.rectangles)
 
@@ -330,7 +343,6 @@ class MainWindow(QMainWindow):
 
     def run_detector(self):
         from yolo import run_yolo
-        from Bbox import Bbox
 
         if self.image_files:
             image_file = self.image_files[self.current_image_index]
@@ -348,12 +360,13 @@ class MainWindow(QMainWindow):
             # Clear the rectangles list of the image_label
             self.image_label.rectangles = [] 
 
-            for bb_left, bb_top, bb_width, bb_height in bbox_list:
+            for bb_left, bb_top, bb_width, bb_height, box_cls in bbox_list:
                 # Convert bounding box values to int
                 org_left = int(bb_left)
                 org_top = int(bb_top)
                 org_width = int(bb_width)
                 org_height = int(bb_height)
+                print("This is box.cls:", box_cls)
 
                 # Convert the coordinates to the QLabel's coordinate system
                 left = int(org_left * scale_x)
@@ -363,8 +376,9 @@ class MainWindow(QMainWindow):
 
                 # Check if this bounding box already exists in the list widget
                 bbox_str = str((left, top, width, height))
+                bbox_str += ", " + str(box_cls)
                 existing_items = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
-                rect = (QPoint(left, top), QPoint(left + width, top + height))
+                rect = (QPoint(left, top), QPoint(left + width, top + height), box_cls)
                 self.image_label.rectangles.append(rect)
 
                 if bbox_str in existing_items:
@@ -372,7 +386,7 @@ class MainWindow(QMainWindow):
 
                 result_string = [s.strip() for s in bbox_str.replace('(', '').replace(')', '').split(',')] #'(left, top, width, height), ID' => '(left, top, width, height)'
                 
-                bbox_short = "({}, {}, {}, {})".format(result_string[0], result_string[1], result_string[2], result_string[3])
+                bbox_short = "({}, {}, {}, {}), {}".format(result_string[0], result_string[1], result_string[2], result_string[3], result_string[4])
                 
                 found = False
                 for items in existing_items:
@@ -406,7 +420,7 @@ class MainWindow(QMainWindow):
                 
                 coords = [int(part.strip()) for part in splited_string]
                 coords = xyhw_to_xyxy(coords)
-                rect = (QPoint(coords[0], coords[1]), QPoint(coords[2], coords[3]), int(id))
+                rect = (QPoint(coords[0], coords[1]), QPoint(coords[2], coords[3]), id)
 
             else:
                 coords = [int(part.strip()) for part in splited_string]
@@ -471,7 +485,40 @@ class MainWindow(QMainWindow):
 
         vertical_offset = (self.image_label.height() - pixmap.height()) / 2
         return scale_x, scale_y, vertical_offset
+    
+    def convert_yolo_format(self, scale_x, scale_y, vertical_offset, bbox0, bbox1, bbox2, bbox3, reverse=False):
+        if not reverse:
+            org_left = bbox0 / scale_x
+            org_top = (bbox1 - vertical_offset) / scale_y
+            org_width = bbox2 / scale_x
+            org_height = bbox3 / scale_y
 
+            center_x = org_left + org_width / 2
+            center_y = org_top + org_height / 2
+
+            yolo_x = center_x / self.img_size_width_height[0]
+            yolo_y = center_y / self.img_size_width_height[1]
+            yolo_w = org_width / self.img_size_width_height[0]
+            yolo_h = org_height / self.img_size_width_height[1]
+
+            return yolo_x, yolo_y, yolo_w, yolo_h
+        else:
+            print("input bbox0 type is ", type(bbox0))
+            center_x = bbox0 * self.img_size_width_height[0]
+            center_y = bbox1 * self.img_size_width_height[1]
+            org_width = bbox2 * self.img_size_width_height[0]
+            org_height = bbox3 * self.img_size_width_height[1]
+
+            center_x = center_x - org_width / 2
+            center_y = center_y - org_height / 2
+
+            pix_width = org_width * scale_x
+            pix_height = org_height * scale_y
+            pix_left = center_x * scale_x
+            pix_top = center_y * scale_y + vertical_offset
+
+            return int(pix_left), int(pix_top), int(pix_width), int(pix_height)
+        
 
 #external function
 def xyhw_to_xyxy(coords, reverse=False):
