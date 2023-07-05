@@ -263,7 +263,7 @@ class MainWindow(QMainWindow):
     def browse_folder(self):
         self.image_dir = QFileDialog.getExistingDirectory(self, 'Open directory', '/home')
         if self.image_dir:
-            self.image_files = sorted([f for f in os.listdir(self.image_dir) if f.endswith(('.png', '.jpg', '.jpeg'))])
+            self.image_files = sorted([f for f in os.listdir(self.image_dir) if f.endswith(('.png', '.jpg', '.jpeg'))], key=sort_key)
             self.current_image_index = -1
             self.next_image()
 
@@ -557,6 +557,10 @@ def capture_bbox(bbox, source_path, scale_x, scale_y, vertical_offset, id, frame
     output_path = "saved IDs/ID{}/frame{}_{}.jpg".format(id, frame_num, image_dir[-2:])  # replace with your desired output path
 
     cv2.imwrite(output_path, bbox_image)
+
+def sort_key(path):
+    # Extract the base name of the file, remove the extension and "frame" prefix, and convert to integer
+    return int(os.path.basename(path).replace('frame', '').replace('.png', ''))
 
 
 if __name__ == "__main__":
