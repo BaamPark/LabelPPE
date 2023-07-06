@@ -226,7 +226,7 @@ class MainWindow(QMainWindow):
         self.id = self.id_widget.toPlainText()
         id_folder = f"saved IDs/ID{self.id}"
         if os.path.isdir(id_folder):
-            self.id_image_files = sorted([f for f in os.listdir(id_folder) if f.endswith(".jpg")])
+            self.id_image_files = sorted([f for f in os.listdir(id_folder) if f.endswith(".jpg")], key=sort_key)
             if self.id_image_files:  # if there are images in the directory
                 self.id_current_image_index = 0
                 self.load_saved_image(os.path.join(id_folder, self.id_image_files[self.id_current_image_index]))
