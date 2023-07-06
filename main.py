@@ -269,6 +269,8 @@ class MainWindow(QMainWindow):
             self.current_image_index = -1
             self.next_image()
 
+            self.image_list_widget.clear()
+
             #add the image file names to the new list widget
             for image_file in self.image_files:
                 self.image_list_widget.addItem(image_file)
