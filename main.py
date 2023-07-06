@@ -11,8 +11,8 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("Image Annotation Tool")
 
-        self.cls_dict = {'ga':0, 'gi':1, 'ma':2, 'mi':3, 'rc':4, 'nc':5}
-        self.reverse_cls_dict = {0:'ga', 1:'gi', 2:'ma', 3:'mi', 4:'rc', 5:'nc'}
+        self.cls_dict = {'ga':0, 'gi':1, 'ma':2, 'mi':3, 'rc':4, 'nc':5, 'h':6, 'invalid':7}
+        self.reverse_cls_dict = {0:'ga', 1:'gi', 2:'ma', 3:'mi', 4:'rc', 5:'nc', 6:'h', 7: 'invalid'}
         self.img_size_width_height = None
         self.image_dir = None
         self.image_annotations = {}
@@ -212,21 +212,23 @@ class MainWindow(QMainWindow):
                     # Show a message box
                         msg = QMessageBox()
                         msg.setIcon(QMessageBox.Warning)
-                        msg.setText("ID missing!")
-                        msg.setInformativeText(f"The ID is missing for the file {file}.")
+                        msg.setText("Code missing!")
+                        msg.setInformativeText(f"The code is missing for the file {file}.")
                         msg.setWindowTitle("Export Warning")
                         msg.exec_()
                         continue
                     bbox, id_ = annotation.rsplit(',', 1)
                     l, t, w, h = map(int, bbox.strip('()').split(','))
                     yolo_x, yolo_y, yolo_w, yolo_h  = self.convert_yolo_format(scale_x, scale_y, vertical_offset, l, t, w, h)
+                    if id_ not in self.cls_dict:
+                        id_ = 'invalid'
                     f.write(f"{file}, {self.cls_dict[id_.strip()]} {yolo_x} {yolo_y} {yolo_w} {yolo_h}\n")
     
     def enter_id(self):
         self.id = self.id_widget.toPlainText()
         id_folder = f"saved IDs/ID{self.id}"
         if os.path.isdir(id_folder):
-            self.id_image_files = sorted([f for f in os.listdir(id_folder) if f.endswith(".jpg")], key=sort_key)
+            self.id_image_files = sorted([f for f in os.listdir(id_folder) if f.endswith(".jpg")], key =sort_key)
             if self.id_image_files:  # if there are images in the directory
                 self.id_current_image_index = 0
                 self.load_saved_image(os.path.join(id_folder, self.id_image_files[self.id_current_image_index]))
@@ -296,6 +298,8 @@ class MainWindow(QMainWindow):
                 for line in f:
                     file, lbl = line.split(', ')
                     id_, x, y, w, h = lbl.split(' ')
+                    if id_ not in self.reverse_cls_dict:
+                        id_ = 7
                     id_ = self.reverse_cls_dict[int(id_)]
                     image_file = self.image_files[self.current_image_index]
                     source = os.path.join(self.image_dir, image_file)
@@ -560,7 +564,12 @@ def capture_bbox(bbox, source_path, scale_x, scale_y, vertical_offset, id, frame
 
 def sort_key(path):
     # Extract the base name of the file, remove the extension and "frame" prefix, and convert to integer
-    return int(os.path.basename(path).replace('frame', '').replace('.png', ''))
+    current_path = os.path.basename(path)
+    if '_' in current_path:
+        numbering = current_path.split('_')[-1]
+        return int(numbering.replace('.png', ''))
+    else:
+        return int(os.path.basename(path).replace('frame', '').replace('.png', ''))
 
 
 if __name__ == "__main__":
