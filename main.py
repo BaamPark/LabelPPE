@@ -217,7 +217,9 @@ class MainWindow(QMainWindow):
                         msg.setWindowTitle("Export Warning")
                         msg.exec_()
                         continue
-                    bbox, id_ = annotation.rsplit(',', 1)
+                    bbox, id_ = annotation.rsplit(', ', 1)
+                    # print("this is annotation", annotation)
+                    # print("what is ID", id_)
                     l, t, w, h = map(int, bbox.strip('()').split(','))
                     yolo_x, yolo_y, yolo_w, yolo_h  = self.convert_yolo_format(scale_x, scale_y, vertical_offset, l, t, w, h)
                     if id_ not in self.cls_dict:
@@ -300,6 +302,8 @@ class MainWindow(QMainWindow):
                 for line in f:
                     file, lbl = line.split(', ')
                     id_, x, y, w, h = lbl.split(' ')
+                    print("read this id in import label function", id_)
+                    id_ = int(id_)
                     if id_ not in self.reverse_cls_dict:
                         id_ = 7
                     id_ = self.reverse_cls_dict[int(id_)]
@@ -316,11 +320,11 @@ class MainWindow(QMainWindow):
 
     def load_image(self):
         import cv2
-        print(self.image_label.rectangles)
         self.image_label.clicked_rect = []
         if self.image_files:
             image_file = self.image_files[self.current_image_index]
             if image_file is not None:
+                assert os.path.exists(os.path.join(self.image_dir, image_file)), f"Image file {image_file} does not exist"
                 img = cv2.imread(os.path.join(self.image_dir, image_file))
                 org_size_h, org_size_w, _ = img.shape
                 self.img_size_width_height = (org_size_w, org_size_h)
@@ -329,7 +333,6 @@ class MainWindow(QMainWindow):
             scaled_pixmap = pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio) 
             self.image_label.setPixmap(scaled_pixmap)
             self.image_label.rectangles.clear() # Clear the rectangles list when a new image is loaded
-            print("after clear", self.image_label.rectangles)
             if image_file in self.image_annotations:
                 self.bbox_list_widget.clear()
                 for bbox in self.image_annotations[image_file]:
@@ -342,7 +345,6 @@ class MainWindow(QMainWindow):
                         x, y, w, h = map(int, splited_string[:-1])
                         rect = (QPoint(x, y), QPoint(x + w, y + h), splited_string[-1])
                     self.image_label.rectangles.append(rect)
-                    print("after append", self.image_label.rectangles)
 
             else:
                 self.bbox_list_widget.clear()
@@ -372,7 +374,6 @@ class MainWindow(QMainWindow):
                 org_top = int(bb_top)
                 org_width = int(bb_width)
                 org_height = int(bb_height)
-                print("This is box.cls:", box_cls)
 
                 # Convert the coordinates to the QLabel's coordinate system
                 left = int(org_left * scale_x)
@@ -509,7 +510,6 @@ class MainWindow(QMainWindow):
 
             return yolo_x, yolo_y, yolo_w, yolo_h
         else:
-            print("input bbox0 type is ", type(bbox0))
             center_x = bbox0 * self.img_size_width_height[0]
             center_y = bbox1 * self.img_size_width_height[1]
             org_width = bbox2 * self.img_size_width_height[0]
