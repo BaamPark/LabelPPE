@@ -7,7 +7,7 @@ def run_yolo(source):
     frame = results[0].orig_img
     bbox_list = []
 
-    clsnum_to_name = {0:'ga', 1:'gi', 2:'ma', 3:'mi', 4:'rc', 5:'nc'}
+    clsnum_to_name = {0:'ga', 1:'gi', 2:'h', 3:'rc', 4: 'ma', 5:'mi', 6:'nc'}
     for result in results:
         for box in result.boxes:
             print("person", box.xyxy[0].tolist())

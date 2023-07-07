@@ -11,8 +11,8 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("Image Annotation Tool")
 
-        self.cls_dict = {'ga':0, 'gi':1, 'ma':2, 'mi':3, 'rc':4, 'nc':5, 'h':6, 'invalid':7}
-        self.reverse_cls_dict = {0:'ga', 1:'gi', 2:'ma', 3:'mi', 4:'rc', 5:'nc', 6:'h', 7: 'invalid'}
+        self.cls_dict = {'ga':0, 'gi':1, 'h':2, 'rc':3, 'ma':4, 'mi':5, 'nc':6, 'invalid':7}
+        self.reverse_cls_dict = {0:'ga', 1:'gi', 2:'h', 3:'rc', 4: 'ma', 5:'mi', 6:'nc', 7:'invalid'}
         self.img_size_width_height = None
         self.image_dir = None
         self.image_annotations = {}
