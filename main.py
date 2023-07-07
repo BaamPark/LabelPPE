@@ -218,8 +218,6 @@ class MainWindow(QMainWindow):
                         msg.exec_()
                         continue
                     bbox, id_ = annotation.rsplit(', ', 1)
-                    # print("this is annotation", annotation)
-                    # print("what is ID", id_)
                     l, t, w, h = map(int, bbox.strip('()').split(','))
                     yolo_x, yolo_y, yolo_w, yolo_h  = self.convert_yolo_format(scale_x, scale_y, vertical_offset, l, t, w, h)
                     if id_ not in self.cls_dict:
@@ -304,7 +302,6 @@ class MainWindow(QMainWindow):
                 for line in f:
                     file, lbl = line.split(', ')
                     id_, x, y, w, h = lbl.split(' ')
-                    print("read this id in import label function", id_)
                     id_ = int(id_)
                     if id_ not in self.reverse_cls_dict:
                         id_ = 7
@@ -571,9 +568,15 @@ def sort_key(path):
     current_path = os.path.basename(path)
     if '_' in current_path:
         numbering = current_path.split('_')[-1]
-        return int(numbering.replace('.png', ''))
-    else:
+        numbering = numbering[:-4]
+        try:
+            return int(numbering)
+        except:
+            return float('inf')  # returning large number instead of None
+    elif "frame" in current_path:
         return int(os.path.basename(path).replace('frame', '').replace('.png', ''))
+    else:
+        return float('inf')  # returning large number instead of None
 
 
 if __name__ == "__main__":
