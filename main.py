@@ -73,6 +73,8 @@ class MainWindow(QMainWindow):
         self.btn_load_prev_labels = QPushButton("Load prebox")
         self.btn_load_prev_labels.clicked.connect(self.load_prev_labels)  # Connect to the function that runs the YOLO detector
         self.btn_load_prev_labels.setFixedWidth(100)
+        load_prev_labels_shortcut = QShortcut(QKeySequence('z'), self)
+        load_prev_labels_shortcut.activated.connect(self.load_prev_labels)
 
         self.btn_clear_all = QPushButton("Clear all")
         self.btn_clear_all.clicked.connect(self.clear_labels)  # Connect to the function that runs the YOLO detector
