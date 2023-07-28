@@ -106,12 +106,8 @@ class ClickableImageLabel(QLabel):
             self.parent.bbox_list_widget.item(self.selected_rectangle_index).setText(new_item_text)
 
     def check_negative_box(self, rect):
-        print("min x: ", rect['min_xy'].x())
-        print("max x", rect['max_xy'].x())
         if rect['min_xy'].x() > rect['max_xy'].x() or rect['min_xy'].y() > rect['max_xy'].y():
             rect['min_xy'], rect['max_xy'] = rect['max_xy'], rect['min_xy']
-            print("min x: ", rect['min_xy'].x())
-            print("max x", rect['max_xy'].x())
             return rect
         else:
             return rect

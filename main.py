@@ -17,8 +17,8 @@ class MainWindow(QMainWindow):
     def __init__(self, parent=None): #conflict
         super(MainWindow, self).__init__(parent)
         self.setWindowTitle("Image Annotation Tool")
-        self.cls_dict = {'ga':0, 'gi':1, 'h':2, 'rc':3, 'ma':4, 'mi':5, 'nc':6, 'invalid':7}
-        self.reverse_cls_dict = {0:'ga', 1:'gi', 2:'h', 3:'rc', 4: 'ma', 5:'mi', 6:'nc', 7:'invalid'}
+        self.cls_dict = {'ga':0, 'gi':1, 'h':2, 'rc':3, 'ma':4, 'mi':5, 'nc':6, 'ns':7, 'invalid':8}
+        self.reverse_cls_dict = {0:'ga', 1:'gi', 2:'h', 3:'rc', 4: 'ma', 5:'mi', 6:'nc', 7:'ns', 8:'invalid'}
         self.img_size_width_height = None
         self.image_dir = None
         self.image_annotations = {}
@@ -331,7 +331,6 @@ class MainWindow(QMainWindow):
 
 
     def load_prev_labels(self):
-
         image_file = self.image_files[self.current_image_index - 1]
         if image_file in self.image_annotations:
             # self.bbox_list_widget.clear()
@@ -362,7 +361,7 @@ class MainWindow(QMainWindow):
                     id_, x, y, w, h = lbl.split(' ')
                     id_ = int(id_)
                     if id_ not in self.reverse_cls_dict:
-                        id_ = 7
+                        id_ = 8
                     id_ = self.reverse_cls_dict[int(id_)]
                     image_file = self.image_files[self.current_image_index]
                     source = os.path.join(self.image_dir, image_file)
@@ -374,20 +373,6 @@ class MainWindow(QMainWindow):
                     else:
                         self.image_annotations[file].append(f"({left}, {top}, {width}, {height}), {id_}")
             self.load_image()
-
-    # def import_label(self):
-    #     options = QFileDialog.Options()
-    #     options |= QFileDialog.ReadOnly
-    #     file_name, _ = QFileDialog.getOpenFileName(self,"QFileDialog.getOpenFileName()", "","Text Files (*.txt)", options=options)
-    #     if file_name:
-    #         with open(file_name, 'r') as f:
-    #             for line in f:
-    #                 file, id_, x, y, w, h, _, _, _, _ = line.split(',')
-    #                 if file not in self.image_annotations:
-    #                     self.image_annotations[file] = [f"({x}, {y}, {w}, {h}), {id_}"]
-    #                 else:
-    #                     self.image_annotations[file].append(f"({x}, {y}, {w}, {h}), {id_}")
-    #         self.load_image()
 
 
     def load_image(self):
@@ -511,8 +496,6 @@ class MainWindow(QMainWindow):
 
             self.bbox_list_widget.takeItem(self.bbox_list_widget.row(item))
 
-            print("rect to be removed:", rect)
-            print("rect list first elem", self.image_label.rectangles[0])
             if rect in self.image_label.rectangles:
 
                 self.image_label.rectangles.remove(rect)
