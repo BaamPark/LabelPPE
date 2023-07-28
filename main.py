@@ -1,16 +1,22 @@
 import sys
 import os
-from PyQt5.QtWidgets import QMainWindow, QApplication, QPushButton, QVBoxLayout, QHBoxLayout, QFileDialog, QLabel, QWidget, QSizePolicy, QListWidget, QTextEdit, QMessageBox, QShortcut
-from PyQt5.QtGui import QPixmap, QFont, QKeySequence
-from PyQt5.QtCore import Qt, QRect, QPoint
+from PyQt5.QtWidgets import QMainWindow, QApplication, QPushButton, QVBoxLayout, QHBoxLayout, QFileDialog, QLabel, QWidget
+from PyQt5.QtGui import QPixmap, QPainter, QPen, QBrush, QColor, QPolygon
+from PyQt5.QtCore import Qt, QRect
+from PyQt5.QtWidgets import QSizePolicy, QListWidget, QTextEdit
+from PyQt5.QtGui import QImage, QFont
 from Clickablebox import ClickableImageLabel
+from PyQt5.QtWidgets import QScrollArea
+from PyQt5.QtGui import QPalette
+from PyQt5.QtCore import QPoint
+from PyQt5.QtWidgets import QMessageBox
+from PyQt5.QtGui import QKeySequence
+from PyQt5.QtWidgets import QShortcut
 
 class MainWindow(QMainWindow):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None): #conflict
         super(MainWindow, self).__init__(parent)
-
         self.setWindowTitle("Image Annotation Tool")
-
         self.cls_dict = {'ga':0, 'gi':1, 'h':2, 'rc':3, 'ma':4, 'mi':5, 'nc':6, 'invalid':7}
         self.reverse_cls_dict = {0:'ga', 1:'gi', 2:'h', 3:'rc', 4: 'ma', 5:'mi', 6:'nc', 7:'invalid'}
         self.img_size_width_height = None
@@ -18,13 +24,14 @@ class MainWindow(QMainWindow):
         self.image_annotations = {}
         self.image_files = []
         self.current_image_index = -1
-        self.selected_bbox = None
         self.resizing = False
         self.image_label = QLabel(self)
         self.image_data = None # this should hold the current image data
+
         self.bbox_list_widget = QListWidget() #! list widget
         self.bbox_list_widget.itemDoubleClicked.connect(self.handle_item_double_clicked)
         self.bbox_list_widget.setFixedWidth(200)
+
         self.text_widget = QTextEdit()  # New text widget
         self.text_widget.setFixedWidth(200)  # Set a fixed height
         self.text_widget.setFixedHeight(25)
@@ -43,12 +50,10 @@ class MainWindow(QMainWindow):
         self.file_label.setText("Current file: None")  # Initial text
         self.file_label.setFixedHeight(20)
         self.file_label.setFont(font)
-        # self.file_label.setStyleSheet("border: 1px solid black;")
         self.file_label.setAlignment(Qt.AlignBottom)
         
         self.resize(1400, 1000)
 
-        # Create a QPushButton
         self.btn_browse = QPushButton("Browse")
         self.btn_browse.clicked.connect(self.browse_folder)
         self.btn_browse.setFixedWidth(100)
@@ -65,9 +70,19 @@ class MainWindow(QMainWindow):
         prev_shorcut = QShortcut(QKeySequence('a'), self)
         prev_shorcut.activated.connect(self.previous_image)
 
+        self.btn_load_prev_labels = QPushButton("Load prebox")
+        self.btn_load_prev_labels.clicked.connect(self.load_prev_labels)  # Connect to the function that runs the YOLO detector
+        self.btn_load_prev_labels.setFixedWidth(100)
+
+        self.btn_clear_all = QPushButton("Clear all")
+        self.btn_clear_all.clicked.connect(self.clear_labels)  # Connect to the function that runs the YOLO detector
+        self.btn_clear_all.setFixedWidth(100)
+
         self.btn_run_detector = QPushButton("Run Detector")
         self.btn_run_detector.clicked.connect(self.run_detector)  # Connect to the function that runs the YOLO detector
         self.btn_run_detector.setFixedWidth(100)
+        runYolo_shortcut = QShortcut(QKeySequence('q'), self)
+        runYolo_shortcut.activated.connect(self.run_detector)
         
         self.btn_add_label = QPushButton("Add Label")
         self.btn_add_label.setCheckable(True) 
@@ -96,22 +111,22 @@ class MainWindow(QMainWindow):
         self.image_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.image_label.setPixmap(QPixmap(''))
 
-        self.saved_image_label = QLabel(self)  #!
+        self.saved_image_label = QLabel(self)
         self.saved_image_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.saved_image_label.setMaximumWidth(200)
         self.saved_image_label.setMaximumHeight(200)
         self.saved_image_label.setPixmap(QPixmap(''))
 
         self.btn_next_id = QPushButton("Next ID")
-        self.btn_next_id.clicked.connect(self.next_id) #!
+        self.btn_next_id.clicked.connect(self.next_id)
         self.btn_next_id.setFixedWidth(100)
 
         self.btn_prev_id = QPushButton("Prev ID")
-        self.btn_prev_id.clicked.connect(self.previous_id) #!
+        self.btn_prev_id.clicked.connect(self.previous_id)
         self.btn_prev_id.setFixedWidth(100)
 
         self.btn_enter_id = QPushButton("Enter ID") # New text widget
-        self.btn_enter_id.clicked.connect(self.enter_id) #!
+        self.btn_enter_id.clicked.connect(self.enter_id)
         self.btn_enter_id.setFixedWidth(100)
 
         # Create a QVBoxLayout instance for buttons
@@ -119,9 +134,11 @@ class MainWindow(QMainWindow):
         button_layout.addWidget(self.btn_browse)
         button_layout.addWidget(self.btn_next)
         button_layout.addWidget(self.btn_prev)
+        button_layout.addWidget(self.btn_load_prev_labels)
         button_layout.addWidget(self.btn_run_detector)
         button_layout.addWidget(self.btn_add_label)
         button_layout.addWidget(self.btn_remove_label)
+        button_layout.addWidget(self.btn_clear_all)
         button_layout.addWidget(self.btn_export_label)
         button_layout.addWidget(self.btn_import_label)
         
@@ -141,14 +158,13 @@ class MainWindow(QMainWindow):
         text_list_layout.addWidget(self.text_widget)
         text_list_layout.addWidget(self.btn_edit_text)
         text_list_layout.addWidget(self.bbox_list_widget)
-        text_list_layout.addWidget(self.image_list_widget) #!
+        text_list_layout.addWidget(self.image_list_widget)
         
         text_list_layout.addWidget(self.id_widget)
         text_list_layout.addWidget(self.btn_enter_id)
         text_list_layout.addWidget(self.btn_next_id)
         text_list_layout.addWidget(self.btn_prev_id)
-        text_list_layout.addWidget(self.saved_image_label) #!
-        
+        text_list_layout.addWidget(self.saved_image_label)
 
         # Create a QHBoxLayout instance for the overall layout
         layout = QHBoxLayout()
@@ -160,39 +176,46 @@ class MainWindow(QMainWindow):
         main_widget.setLayout(layout)
         self.setCentralWidget(main_widget)
 
+
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Left:
             self.previous_image()
         elif event.key() == Qt.Key_Right:
             self.next_image()
 
+
     def handle_item_double_clicked(self, item):
-        if self.image_label.clicked_rect:
-            self.image_label.clicked_rect.pop()
+        if self.image_label.clicked_rect_index:
+            past_index = self.image_label.clicked_rect_index.pop()
+            self.image_label.rectangles[past_index]['focus'] = False
             self.image_label.update()
         self.highlight_bbox(item.text())
 
     
     def highlight_bbox(self, bbox):
         splited_string = [s.strip() for s in bbox.replace('(', '').replace(')', '').split(',')]
-        if len(splited_string) == 4:
-            x, y, w, h = map(int, bbox.replace('(', '').replace(')', '').split(','))
-            rect = (QPoint(x, y), QPoint(x + w, y + h), '', 'red')
-            self.image_label.clicked_rect.append(rect)
-        elif len(splited_string) == 5:
-            splitted_bbox = bbox.replace('(', '').replace(')', '').split(',')
-            x, y, w, h = map(int, splitted_bbox[:-1])  # convert all but the last item to int
-            id = splitted_bbox[-1]  # keep the last item (id) as string
-            rect = (QPoint(x, y), QPoint(x + w, y + h), id, 'red')
-            self.image_label.clicked_rect.append(rect)
+        if len(splited_string) > 4:
+            splited_string = splited_string[:4]
+        left, top, width, height = map(int, splited_string)
+        vertices = [left, top, width, height]
+        vertices = xyhw_to_xyxy(vertices)
+        right, bottom = vertices[2], vertices[3]
+
+        for i, rect in enumerate(self.image_label.rectangles):
+                if rect['min_xy'] == QPoint(left, top) and rect['max_xy'] == QPoint(right, bottom):
+
+                    self.image_label.rectangles[i]['focus'] = True
+                    self.image_label.clicked_rect_index.append(i)
+                    break
 
         self.image_label.update()
+
 
     def export_labels(self, btn=False):
         image_file = self.image_files[self.current_image_index]
         source = os.path.join(self.image_dir, image_file)
-
         scale_x, scale_y, vertical_offset = self.calculate_scale_and_offset(source)
+        
         if btn:
             options = QFileDialog.Options()
             options |= QFileDialog.DontUseNativeDialog
@@ -212,55 +235,65 @@ class MainWindow(QMainWindow):
                     # Show a message box
                         msg = QMessageBox()
                         msg.setIcon(QMessageBox.Warning)
-                        msg.setText("Code missing!")
-                        msg.setInformativeText(f"The code is missing for the file {file}.")
+                        msg.setText("ID missing!")
+                        msg.setInformativeText(f"The ID is missing for the file {file}.")
                         msg.setWindowTitle("Export Warning")
                         msg.exec_()
                         continue
                     bbox, id_ = annotation.rsplit(', ', 1)
-                    l, t, w, h = map(int, bbox.strip('()').split(','))
-                    yolo_x, yolo_y, yolo_w, yolo_h  = self.convert_yolo_format(scale_x, scale_y, vertical_offset, l, t, w, h)
+                    x, y, w, h = map(int, bbox.strip('()').split(','))
+                    yolo_x, yolo_y, yolo_w, yolo_h  = self.convert_yolo_format(scale_x, scale_y, vertical_offset, x, y, w, h)
+
                     if id_ not in self.cls_dict:
                         id_ = 'invalid'
                     f.write(f"{file}, {self.cls_dict[id_.strip()]} {yolo_x} {yolo_y} {yolo_w} {yolo_h}\n")
     
+    
+
     def enter_id(self):
         self.id = self.id_widget.toPlainText()
         id_folder = f"saved IDs/ID{self.id}"
         if os.path.isdir(id_folder):
-            self.id_image_files = sorted([f for f in os.listdir(id_folder) if f.endswith(".jpg")], key =sort_key)
+            self.id_image_files = sorted([f for f in os.listdir(id_folder) if f.endswith(".png")], key=sort_key)
             if self.id_image_files:  # if there are images in the directory
                 self.id_current_image_index = 0
                 self.load_saved_image(os.path.join(id_folder, self.id_image_files[self.id_current_image_index]))
                 
+
     def next_id(self):
         if self.id_image_files and self.id_current_image_index < len(self.id_image_files) - 1:
             # increment the index
             self.id_current_image_index += 1
             # load the image
             self.load_saved_image(os.path.join(f"saved IDs/ID{self.id}", self.id_image_files[self.id_current_image_index]))
+        if self.id_current_image_index >= len(self.id_image_files) - 1:
+            self.id_current_image_index = len(self.id_image_files) - 1
+            self.load_saved_image(os.path.join(f"saved IDs/ID{self.id}", self.id_image_files[self.id_current_image_index]))
+        
+
     def previous_id(self):
-        if self.id_image_files and self.id_current_image_index < len(self.id_image_files) - 1:
+        if self.id_image_files and self.id_current_image_index > 0:
             # increment the index
             self.id_current_image_index -= 1
-            # load the image
+            
+            self.load_saved_image(os.path.join(f"saved IDs/ID{self.id}", self.id_image_files[self.id_current_image_index]))
+        if self.id_current_image_index <= 0:
+            self.id_current_image_index = 0
             self.load_saved_image(os.path.join(f"saved IDs/ID{self.id}", self.id_image_files[self.id_current_image_index]))
 
+
     def load_saved_image(self, img_path):
-        # A new function for loading the image
         pixmap = QPixmap(img_path)
         scaled_pixmap = pixmap.scaled(self.saved_image_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
         self.saved_image_label.setPixmap(scaled_pixmap)
 
+
     def load_image_from_list(self, item):
-        # This new method is called when an item in the QListWidget is clicked
-        # The clicked item is passed as an argument to the method
-        # Get the text of the item (which is the image file name)
+        self.image_annotations[self.image_files[self.current_image_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
         image_file = item.text()
-        # Set the current image index to the index of the clicked image file
         self.current_image_index = self.image_files.index(image_file)
-        # Load the image
         self.load_image()
+
 
     def browse_folder(self):
         self.image_dir = QFileDialog.getExistingDirectory(self, 'Open directory', '/home')
@@ -268,14 +301,11 @@ class MainWindow(QMainWindow):
             self.image_files = sorted([f for f in os.listdir(self.image_dir) if f.endswith(('.png', '.jpg', '.jpeg'))], key=sort_key)
             self.current_image_index = -1
             self.next_image()
-
             self.image_list_widget.clear()
 
-            #add the image file names to the new list widget
             for image_file in self.image_files:
                 self.image_list_widget.addItem(image_file)
 
-        self.image_annotations = {}
 
     def next_image(self):
         if self.image_files:
@@ -286,6 +316,7 @@ class MainWindow(QMainWindow):
             self.load_image()
             self.export_labels()
 
+
     def previous_image(self):
         if self.image_files:
             self.image_annotations[self.image_files[self.current_image_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
@@ -293,12 +324,39 @@ class MainWindow(QMainWindow):
             self.current_image_index -= 1
             self.load_image()
 
+    def clear_labels(self):
+        self.bbox_list_widget.clear()
+        self.image_label.rectangles.clear()
+        self.image_label.update()
+
+
+    def load_prev_labels(self):
+
+        image_file = self.image_files[self.current_image_index - 1]
+        if image_file in self.image_annotations:
+            # self.bbox_list_widget.clear()
+            for bbox in self.image_annotations[image_file]:
+                self.bbox_list_widget.addItem(bbox)
+                splited_string = [s.strip() for s in bbox.replace('(', '').replace(')', '').split(',')]
+                if len(splited_string) == 4:
+                    x, y, w, h = map(int, splited_string)
+                    rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'id': None, 'focus': False}
+                else:
+                    x, y, w, h = map(int, splited_string[:-1])
+                    rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'id': splited_string[-1], 'focus': False}
+                self.image_label.rectangles.append(rect)
+            self.image_label.update()
+
+        # else:
+        #     self.bbox_list_widget.clear()
+
     def import_label(self):
         options = QFileDialog.Options()
         options |= QFileDialog.ReadOnly
         file_name, _ = QFileDialog.getOpenFileName(self,"QFileDialog.getOpenFileName()", "","Text Files (*.txt)", options=options)
         if file_name:
             with open(file_name, 'r') as f:
+                self.image_annotations.clear()
                 for line in f:
                     file, lbl = line.split(', ')
                     id_, x, y, w, h = lbl.split(' ')
@@ -317,9 +375,24 @@ class MainWindow(QMainWindow):
                         self.image_annotations[file].append(f"({left}, {top}, {width}, {height}), {id_}")
             self.load_image()
 
+    # def import_label(self):
+    #     options = QFileDialog.Options()
+    #     options |= QFileDialog.ReadOnly
+    #     file_name, _ = QFileDialog.getOpenFileName(self,"QFileDialog.getOpenFileName()", "","Text Files (*.txt)", options=options)
+    #     if file_name:
+    #         with open(file_name, 'r') as f:
+    #             for line in f:
+    #                 file, id_, x, y, w, h, _, _, _, _ = line.split(',')
+    #                 if file not in self.image_annotations:
+    #                     self.image_annotations[file] = [f"({x}, {y}, {w}, {h}), {id_}"]
+    #                 else:
+    #                     self.image_annotations[file].append(f"({x}, {y}, {w}, {h}), {id_}")
+    #         self.load_image()
+
+
     def load_image(self):
         import cv2
-        self.image_label.clicked_rect = []
+        self.image_label.clicked_rect_index = []
         if self.image_files:
             image_file = self.image_files[self.current_image_index]
             if image_file is not None:
@@ -339,14 +412,15 @@ class MainWindow(QMainWindow):
                     splited_string = [s.strip() for s in bbox.replace('(', '').replace(')', '').split(',')]
                     if len(splited_string) == 4:
                         x, y, w, h = map(int, splited_string)
-                        rect = (QPoint(x, y), QPoint(x + w, y + h))
+                        rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'id': None, 'focus': False}
                     else:
                         x, y, w, h = map(int, splited_string[:-1])
-                        rect = (QPoint(x, y), QPoint(x + w, y + h), splited_string[-1])
+                        rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'id': splited_string[-1], 'focus': False}
                     self.image_label.rectangles.append(rect)
 
             else:
                 self.bbox_list_widget.clear()
+
 
     def run_detector(self):
         from yolo import run_yolo
@@ -384,7 +458,7 @@ class MainWindow(QMainWindow):
                 bbox_str = str((left, top, width, height))
                 bbox_str += ", " + str(box_cls)
                 existing_items = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
-                rect = (QPoint(left, top), QPoint(left + width, top + height), box_cls)
+                rect = {"min_xy": QPoint(left, top), "max_xy": QPoint(left + width, top + height), 'id': box_cls, 'focus': False}
                 self.image_label.rectangles.append(rect)
 
                 if bbox_str in existing_items:
@@ -392,7 +466,7 @@ class MainWindow(QMainWindow):
 
                 result_string = [s.strip() for s in bbox_str.replace('(', '').replace(')', '').split(',')] #'(left, top, width, height), ID' => '(left, top, width, height)'
                 
-                bbox_short = "({}, {}, {}, {}), {}".format(result_string[0], result_string[1], result_string[2], result_string[3], result_string[4])
+                bbox_short = "({}, {}, {}, {})".format(result_string[0], result_string[1], result_string[2], result_string[3])
                 
                 found = False
                 for items in existing_items:
@@ -406,49 +480,55 @@ class MainWindow(QMainWindow):
             pixmap = pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio)
             self.image_label.update()
 
+
     def add_label(self):
         if self.btn_add_label.isChecked():
             self.image_label.drawing = True
         else:
             self.image_label.drawing = False
 
+
     def remove_label(self):
         #remove highlighted rectangle when loading image
-        if self.image_label.clicked_rect:
-            self.image_label.clicked_rect.pop()
+        if self.image_label.clicked_rect_index:
+            self.image_label.clicked_rect_index.pop()
 
         item = self.bbox_list_widget.currentItem()
 
         if item:
             splited_string = [s.strip() for s in item.text().replace('(', '').replace(')', '').split(',')]
-            if len(splited_string) > 4:
+            if len(splited_string) > 4: #when id is included
                 id = splited_string.pop()
                 
                 coords = [int(part.strip()) for part in splited_string]
                 coords = xyhw_to_xyxy(coords)
-                rect = (QPoint(coords[0], coords[1]), QPoint(coords[2], coords[3]), id)
+                rect = {'min_xy': QPoint(coords[0], coords[1]), 'max_xy':QPoint(coords[2], coords[3]), 'id':id, 'focus':False}
 
             else:
                 coords = [int(part.strip()) for part in splited_string]
                 coords = xyhw_to_xyxy(coords)
-                rect = (QPoint(coords[0], coords[1]), QPoint(coords[2], coords[3]))
+                rect = {'min_xy': QPoint(coords[0], coords[1]), 'max_xy':QPoint(coords[2], coords[3]), 'id':None, 'focus':False}
 
             self.bbox_list_widget.takeItem(self.bbox_list_widget.row(item))
-            print("rect to be removed", rect)
-            self.image_label.rectangles.remove(rect)
+
+            print("rect to be removed:", rect)
+            print("rect list first elem", self.image_label.rectangles[0])
+            if rect in self.image_label.rectangles:
+
+                self.image_label.rectangles.remove(rect)
+            else: #when trying to remove focused bbox, set 'focus' value to True
+                rect['focus'] = True
+                self.image_label.rectangles.remove(rect)
 
             # Repaint the QLabel
             self.image_label.repaint()
 
+
     def edit_text(self):
         image_file = self.image_files[self.current_image_index]
         source = os.path.join(self.image_dir, image_file)
-        # Get the current text from the QTextEdit widget
         new_text = self.text_widget.toPlainText()
-
         scale_x, scale_y, vertical_offset = self.calculate_scale_and_offset(source)
-
-        # Get the currently selected item from the QListWidget
         current_item = self.bbox_list_widget.currentItem()
 
         # If an item is selected, update its text
@@ -471,12 +551,14 @@ class MainWindow(QMainWindow):
             # Update the rectangles list with the bounding box ID
             # it has use for loop because whenever you update iamge_label, the paintEvent work same jobs again.
             for i, rect in enumerate(self.image_label.rectangles):
-                if rect[0] == QPoint(left, top) and rect[1] == QPoint(right, bottom):
-                    self.image_label.rectangles[i] = (rect[0], rect[1], new_text)
+                if rect['min_xy'] == QPoint(left, top) and rect['max_xy'] == QPoint(right, bottom):
+
+                    self.image_label.rectangles[i]['id'] = new_text
                     break
 
         # Force a repaint
         self.image_label.update()
+
 
     def calculate_scale_and_offset(self, source):
         # Load the image into a QPixmap
@@ -491,7 +573,7 @@ class MainWindow(QMainWindow):
 
         vertical_offset = (self.image_label.height() - pixmap.height()) / 2
         return scale_x, scale_y, vertical_offset
-    
+
     def convert_yolo_format(self, scale_x, scale_y, vertical_offset, bbox0, bbox1, bbox2, bbox3, reverse=False):
         if not reverse:
             org_left = bbox0 / scale_x
@@ -533,6 +615,7 @@ def xyhw_to_xyxy(coords, reverse=False):
         coords[2], coords[3] = coords[2] - coords[0], coords[3] - coords[1]
     return coords
 
+
 #this function will be called when text edit button is pressed
 def capture_bbox(bbox, source_path, scale_x, scale_y, vertical_offset, id, frame_num, image_dir):
     import cv2
@@ -554,29 +637,24 @@ def capture_bbox(bbox, source_path, scale_x, scale_y, vertical_offset, id, frame
     if original_bbox[3] > source_image.shape[0]:
         original_bbox[3] = source_image.shape[0]
 
-    # Crop the bounding box from the original image
+    # Crop the bounding box from the original image os.path.basename(path)
     bbox_image = source_image[original_bbox[1]:original_bbox[3], original_bbox[0]:original_bbox[2]]
 
     os.makedirs("saved IDs/ID{}".format(id), exist_ok=True)
 
-    output_path = "saved IDs/ID{}/frame{}_{}.jpg".format(id, frame_num, image_dir[-2:])  # replace with your desired output path
+    output_path = "saved IDs/ID{}/frame_{}_{}.png".format(id, frame_num, os.path.basename(image_dir))  # replace with your desired output path
 
     cv2.imwrite(output_path, bbox_image)
+
 
 def sort_key(path):
     # Extract the base name of the file, remove the extension and "frame" prefix, and convert to integer
     current_path = os.path.basename(path)
     if '_' in current_path:
         numbering = current_path.split('_')[-1]
-        numbering = numbering[:-4]
-        try:
-            return int(numbering)
-        except:
-            return float('inf')  # returning large number instead of None
-    elif "frame" in current_path:
-        return int(os.path.basename(path).replace('frame', '').replace('.png', ''))
+        return int(numbering.replace('.png', ''))
     else:
-        return float('inf')  # returning large number instead of None
+        return int(os.path.basename(path).replace('frame', '').replace('.png', ''))
 
 
 if __name__ == "__main__":
