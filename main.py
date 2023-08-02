@@ -12,6 +12,7 @@ from PyQt5.QtCore import QPoint
 from PyQt5.QtWidgets import QMessageBox
 from PyQt5.QtGui import QKeySequence
 from PyQt5.QtWidgets import QShortcut
+from logger_config import logger
 
 class MainWindow(QMainWindow):
     def __init__(self, parent=None): #conflict
@@ -497,6 +498,8 @@ class MainWindow(QMainWindow):
                 rect = {'min_xy': QPoint(coords[0], coords[1]), 'max_xy':QPoint(coords[2], coords[3]), 'id':None, 'focus':False}
 
             self.bbox_list_widget.takeItem(self.bbox_list_widget.row(item))
+            
+            logger.info(f'trying to remove rect: {rect} from rectangle list: {self.image_label.rectangles}')
 
             if rect in self.image_label.rectangles:
 
@@ -538,6 +541,7 @@ class MainWindow(QMainWindow):
             for i, rect in enumerate(self.image_label.rectangles):
                 if rect['min_xy'] == QPoint(left, top) and rect['max_xy'] == QPoint(right, bottom):
 
+                    logger.info('trying to label bbox class: {}'.format(new_text))
                     self.image_label.rectangles[i]['id'] = new_text
                     break
 

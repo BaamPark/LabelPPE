@@ -1,6 +1,7 @@
 from PyQt5.QtCore import Qt, QRect, QPoint
 from PyQt5.QtGui import QPainter, QPen, QColor
 from PyQt5.QtWidgets import QLabel
+from logger_config import logger
 
 class ClickableImageLabel(QLabel):
     def __init__(self, parent):
@@ -31,13 +32,14 @@ class ClickableImageLabel(QLabel):
                 #this for loop is used for resizing the box
                 for j, corner in enumerate([top_left, top_right, bottom_left, bottom_right]):
                     if (corner - event.pos()).manhattanLength() < 10:  # 10 is the max distance to detect a corner
+                        logger.info('trying to resize bounding box')
                         self.active_rectangle_index = i
                         self.active_corner = j
                         continue
 
                 #this if block is used for relocation
                 if QRect(top_left, bottom_right).contains(event.pos()):
-
+                    logger.info('trying to relocate bounding box')
                     self.selected_rectangle_index = i
                     if self.parent.image_label.clicked_rect_index:
                         past_index = self.parent.image_label.clicked_rect_index.pop()
@@ -50,6 +52,7 @@ class ClickableImageLabel(QLabel):
             #for else statement: The “else” block only executes when there is no break in the loop.
             else:
                 if self.parent.btn_add_label.isChecked() and self.active_corner is None:
+                    logger.info('trying to draw bounding box')
                     self.start_pos = event.pos()
                     self.end_pos = event.pos()  # Also initialize end_pos here
                     self.drawing = True
@@ -106,9 +109,25 @@ class ClickableImageLabel(QLabel):
             self.parent.bbox_list_widget.item(self.selected_rectangle_index).setText(new_item_text)
 
     def check_negative_box(self, rect):
-        if rect['min_xy'].x() > rect['max_xy'].x() or rect['min_xy'].y() > rect['max_xy'].y():
+        if rect['min_xy'].x() > rect['max_xy'].x() and rect['min_xy'].y() > rect['max_xy'].y():
+            logger.info(f"trying to fix negative bounding box: {rect}")
             rect['min_xy'], rect['max_xy'] = rect['max_xy'], rect['min_xy']
             return rect
+        
+        elif rect['min_xy'].x() > rect['max_xy'].x() and rect['max_xy'].y() > rect['min_xy'].y():
+            logger.info(f"trying to fix negative bounding box: {rect}")
+            temp = rect['min_xy'].x()
+            rect['min_xy'].setX(rect['max_xy'].x())
+            rect['max_xy'].setX(temp)
+            return rect
+        
+        elif rect['max_xy'].x() > rect['min_xy'].x() and rect['min_xy'].y() > rect['max_xy'].y():
+            logger.info(f"trying to fix negative bounding box: {rect}")
+            temp = rect['min_xy'].y()
+            rect['min_xy'].setY(rect['max_xy'].y())
+            rect['max_xy'].setY(temp)
+            return rect
+        
         else:
             return rect
 
