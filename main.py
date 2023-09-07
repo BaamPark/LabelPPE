@@ -245,6 +245,7 @@ class MainWindow(QMainWindow):
                         continue
                     bbox, id_ = annotation.rsplit(', ', 1)
                     x, y, w, h = map(int, bbox.strip('()').split(','))
+                    # x, y, w, h = self.convert_pixmap_to_source_coordinate(x, y, w, h)
                     yolo_x, yolo_y, yolo_w, yolo_h  = self.convert_yolo_format(scale_x, scale_y, vertical_offset, x, y, w, h)
 
                     if id_ not in self.cls_dict:
@@ -362,6 +363,7 @@ class MainWindow(QMainWindow):
                 for line in f:
                     file, lbl = line.split(', ')
                     id_, x, y, w, h = lbl.split(' ')
+                    
                     id_ = int(id_)
                     if id_ not in self.reverse_cls_dict:
                         id_ = 8
@@ -371,6 +373,8 @@ class MainWindow(QMainWindow):
 
                     scale_x, scale_y, vertical_offset = self.calculate_scale_and_offset(source)
                     left, top, width, height= self.convert_yolo_format(scale_x, scale_y, vertical_offset, float(x), float(y), float(w), float(h), reverse=True)
+                    # left, top, width, height = self.convert_source_to_pixmap_coordinate(left, top, width, height)
+
                     if file not in self.image_annotations:
                         self.image_annotations[file] = [f"({left}, {top}, {width}, {height}), {id_}"]
                     else:
@@ -417,30 +421,18 @@ class MainWindow(QMainWindow):
             image_file = self.image_files[self.current_image_index]
             source = os.path.join(self.image_dir, image_file)
             _, bbox_list = run_yolo(source)
-            scale_x, scale_y, vertical_offset = self.calculate_scale_and_offset(source)
             pixmap = QPixmap(source)
             # Scale the QPixmap to fit the QLabel
             pixmap = pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio)
-            scale_x, scale_y, vertical_offset = self.calculate_scale_and_offset(source)
 
-            # Update QLabel
+            # Update QLabel 
             self.image_label.setPixmap(pixmap)
 
             # Clear the rectangles list of the image_label
             self.image_label.rectangles = [] 
 
             for bb_left, bb_top, bb_width, bb_height, box_cls in bbox_list:
-                # Convert bounding box values to int
-                org_left = int(bb_left)
-                org_top = int(bb_top)
-                org_width = int(bb_width)
-                org_height = int(bb_height)
-
-                # Convert the coordinates to the QLabel's coordinate system
-                left = int(org_left * scale_x)
-                top = int((org_top * scale_y) + vertical_offset)
-                width = int(org_width * scale_x)
-                height = int(org_height * scale_y)
+                left, top, width, height = self.convert_source_to_pixmap_coordinate(bb_left, bb_top, bb_width, bb_height)
 
                 # Check if this bounding box already exists in the list widget
                 bbox_str = str((left, top, width, height))
@@ -563,6 +555,7 @@ class MainWindow(QMainWindow):
         vertical_offset = (self.image_label.height() - pixmap.height()) / 2
         return scale_x, scale_y, vertical_offset
 
+    #convert_yolo_format function has 
     def convert_yolo_format(self, scale_x, scale_y, vertical_offset, bbox0, bbox1, bbox2, bbox3, reverse=False):
         if not reverse:
             org_left = bbox0 / scale_x
@@ -595,6 +588,50 @@ class MainWindow(QMainWindow):
 
             return int(pix_left), int(pix_top), int(pix_width), int(pix_height)
         
+
+    def calculate_scale_and_offset(self, source):
+        # Load the image into a QPixmap
+        pixmap = QPixmap(source)
+        image_width = pixmap.width()
+        image_height = pixmap.height()
+
+        # Scale the QPixmap to fit the QLabel
+        pixmap = pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio)
+        scale_x = pixmap.width() / image_width
+        scale_y = pixmap.height() / image_height
+
+        vertical_offset = (self.image_label.height() - pixmap.height()) / 2
+        return scale_x, scale_y, vertical_offset
+    
+
+    def prepend_calculate_scale_and_offset(self):
+        image_file = self.image_files[self.current_image_index]
+        source = os.path.join(self.image_dir, image_file)
+        scale_x, scale_y, vertical_offset = self.calculate_scale_and_offset(source)
+        return scale_x, scale_y, vertical_offset
+    
+
+    def convert_source_to_pixmap_coordinate(self, x, y, w, h):
+        x, y, w, h = map(int, (x, y, w, h))
+        scale_x, scale_y, vertical_offset = self.prepend_calculate_scale_and_offset()
+        
+        x = int(x * scale_x)
+        y = int((y * scale_y) + vertical_offset)
+        w = int(w * scale_x)
+        h = int(h * scale_y)
+
+        return x, y, w, h 
+    
+    def convert_pixmap_to_source_coordinate(self, x, y, w, h):
+        x, y, w, h = map(int, (x, y, w, h))
+        scale_x, scale_y, vertical_offset = self.prepend_calculate_scale_and_offset()
+        
+        x = int(x / scale_x)
+        y = int((y - vertical_offset) / scale_y)
+        w = int(w / scale_x)
+        h = int(h / scale_y)
+        
+        return x, y, w, h 
 
 #external function
 def xyhw_to_xyxy(coords, reverse=False):
