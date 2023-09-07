@@ -245,7 +245,6 @@ class MainWindow(QMainWindow):
                         continue
                     bbox, id_ = annotation.rsplit(', ', 1)
                     x, y, w, h = map(int, bbox.strip('()').split(','))
-                    # x, y, w, h = self.convert_pixmap_to_source_coordinate(x, y, w, h)
                     yolo_x, yolo_y, yolo_w, yolo_h  = self.convert_yolo_format(scale_x, scale_y, vertical_offset, x, y, w, h)
 
                     if id_ not in self.cls_dict:
@@ -373,7 +372,6 @@ class MainWindow(QMainWindow):
 
                     scale_x, scale_y, vertical_offset = self.calculate_scale_and_offset(source)
                     left, top, width, height= self.convert_yolo_format(scale_x, scale_y, vertical_offset, float(x), float(y), float(w), float(h), reverse=True)
-                    # left, top, width, height = self.convert_source_to_pixmap_coordinate(left, top, width, height)
 
                     if file not in self.image_annotations:
                         self.image_annotations[file] = [f"({left}, {top}, {width}, {height}), {id_}"]
