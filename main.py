@@ -524,7 +524,7 @@ class MainWindow(QMainWindow):
             vertices = xyhw_to_xyxy(vertices)
             right, bottom = vertices[2], vertices[3]
 
-            capture_bbox(vertices, source, scale_x, scale_y, vertical_offset, new_text, self.current_image_index, self.image_dir)
+            # capture_bbox(vertices, source, scale_x, scale_y, vertical_offset, new_text, self.current_image_index, self.image_dir)
 
             # Update the rectangles list with the bounding box ID
             # it has use for loop because whenever you update iamge_label, the paintEvent work same jobs again.
