@@ -41,7 +41,7 @@ class ClickableImageLabel(QLabel):
                 if QRect(top_left, bottom_right).contains(event.pos()):
                     logger.info('trying to relocate bounding box')
                     self.selected_rectangle_index = i
-                    if self.parent.image_label.clicked_rect_index:
+                    if self.parent.image_label.clicked_rect_index: #self.parent allows access to parent (MainWindow object), which is the owner in the composition relationship
                         past_index = self.parent.image_label.clicked_rect_index.pop()
                         self.rectangles[past_index]['focus'] = False
                         self.parent.image_label.clicked_rect_index.append(i)
@@ -99,6 +99,7 @@ class ClickableImageLabel(QLabel):
             self.parent.bbox_list_widget.addItem(str((rect['min_xy'].x(), rect['min_xy'].y(), rect['max_xy'].x() - rect['min_xy'].x(), rect['max_xy'].y() - rect['min_xy'].y())))  # Update the list widget
         
         elif self.selected_rectangle_index is not None:
+            logger.info(f"release the box: selected box index: {self.selected_rectangle_index} from current box list: {self.rectangles}")
             rect = self.rectangles[self.selected_rectangle_index]
             self.update()
             rect['focus'] = False

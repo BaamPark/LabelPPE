@@ -385,6 +385,7 @@ class MainWindow(QMainWindow):
         self.image_label.clicked_rect_index = []
         if self.image_files:
             image_file = self.image_files[self.current_image_index]
+            logger.info(f'image loaded: {image_file}')
             if image_file is not None:
                 assert os.path.exists(os.path.join(self.image_dir, image_file)), f"Image file {image_file} does not exist"
                 img = cv2.imread(os.path.join(self.image_dir, image_file))
