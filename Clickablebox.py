@@ -16,7 +16,6 @@ class ClickableImageLabel(QLabel):
         self.clicked_rect = []
         self.selected_rectangle_index = None
         self.last_pos = None
-        self.active_rectangle_index = None
         self.active_corner = None
 
 
@@ -37,7 +36,6 @@ class ClickableImageLabel(QLabel):
                 for j, corner in enumerate([top_left, top_right, bottom_left, bottom_right]):
                     if (corner - event.pos()).manhattanLength() < 10:  # 10 is the max distance to detect a corner
                         logger.info('trying to resize bounding box')
-                        self.active_rectangle_index = i
                         self.selected_rectangle_index = i
                         self.active_corner = j
                         resizing_condition = True
