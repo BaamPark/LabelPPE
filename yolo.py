@@ -1,13 +1,14 @@
 from ultralytics import YOLO
 import cv2
+import yaml
 
 def run_yolo(source):
-    model = YOLO('best.pt')
+    model = YOLO('18cls_ppe_detector.pt')
     results = model(source)
     frame = results[0].orig_img
     bbox_list = []
 
-    clsnum_to_name = {0:'ga', 1:'gi', 2:'h', 3:'rc', 4: 'ma', 5:'mi', 6:'nc'}
+    clsnum_to_name = import_yaml(True)
     for result in results:
         for box in result.boxes:
             print("person", box.xyxy[0].tolist())
@@ -28,10 +29,12 @@ def run_yolo(source):
 
     return frame, bbox_list
 
-    # cv2.imshow('Image', frame)
-    # cv2.waitKey(0)
-    # cv2.destroyAllWindows()
+def import_yaml(flag_key_number=True):
+    with open('yolo_cls_config.yaml', 'r') as file:
+        data = yaml.safe_load(file)
 
-#source="videos/input segments/1.23 Simulation trimed.mp4" classes=0 save=True
+    if flag_key_number == False:
+        #swap key and value
+        data = {value: key for key, value in data.items()}
 
-# run_yolo("samples/2.24.23 sim without bed-trauma 1 above bed_above_17.png")
+    return data

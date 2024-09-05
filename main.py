@@ -13,21 +13,20 @@ from PyQt5.QtWidgets import QMessageBox
 from PyQt5.QtGui import QKeySequence
 from PyQt5.QtWidgets import QShortcut
 from logger_config import logger
+import yaml
 
 class MainWindow(QMainWindow):
     def __init__(self, parent=None): #conflict
         super(MainWindow, self).__init__(parent)
         self.setWindowTitle("Image Annotation Tool")
-        self.cls_dict = {'ga':0, 'gi':1, 'h':2, 'rc':3, 'ma':4, 'mi':5, 'nc':6, 'ns':7, 'invalid':8}
-        self.reverse_cls_dict = {0:'ga', 1:'gi', 2:'h', 3:'rc', 4: 'ma', 5:'mi', 6:'nc', 7:'ns', 8:'invalid'}
+        self.cls_dict = import_yaml(flag_key_number=False)
+        self.reverse_cls_dict = import_yaml(flag_key_number=True)
         self.img_size_width_height = None
         self.image_dir = None
         self.image_annotations = {}
         self.image_files = []
         self.current_image_index = -1
-        self.resizing = False
-        self.image_label = QLabel(self)
-        self.image_data = None # this should hold the current image data
+        # self.image_label = QLabel(self)
 
         self.bbox_list_widget = QListWidget() #! list widget
         self.bbox_list_widget.itemDoubleClicked.connect(self.handle_item_double_clicked)
@@ -257,7 +256,8 @@ class MainWindow(QMainWindow):
         self.id = self.id_widget.toPlainText()
         id_folder = f"saved IDs/ID{self.id}"
         if os.path.isdir(id_folder):
-            self.id_image_files = sorted([f for f in os.listdir(id_folder) if f.endswith(".png")], key=sort_key)
+            #! self.id_image_files = sorted([f for f in os.listdir(id_folder) if f.endswith(".png")], key=sort_key)
+            self.id_image_files = sorted([f for f in os.listdir(id_folder) if f.endswith(".png")])
             if self.id_image_files:  # if there are images in the directory
                 self.id_current_image_index = 0
                 self.load_saved_image(os.path.join(id_folder, self.id_image_files[self.id_current_image_index]))
@@ -295,7 +295,42 @@ class MainWindow(QMainWindow):
         self.image_annotations[self.image_files[self.current_image_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
         image_file = item.text()
         self.current_image_index = self.image_files.index(image_file)
+        logger.info(f"image_file: {image_file} (load_image_from_list)")
         self.load_image()
+
+
+    def load_image(self):
+        import cv2
+        self.image_label.clicked_rect_index = []
+        if self.image_files:
+            image_file = self.image_files[self.current_image_index]
+            logger.info(f'image loaded: {image_file}')
+            if image_file is not None:
+                assert os.path.exists(os.path.join(self.image_dir, image_file)), f"Image file {image_file} does not exist"
+                img = cv2.imread(os.path.join(self.image_dir, image_file))
+                org_size_h, org_size_w, _ = img.shape
+                self.img_size_width_height = (org_size_w, org_size_h)
+            self.file_label.setText(f"Current file: {image_file}")
+            pixmap = QPixmap(os.path.join(self.image_dir, image_file))
+            scaled_pixmap = pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio) 
+            self.image_label.setPixmap(scaled_pixmap)
+            self.image_label.rectangles.clear() # Clear the rectangles list when a new image is loaded
+            logger.info(f"image_annotations: {self.image_annotations} (load_image)")
+            if image_file in self.image_annotations:
+                self.bbox_list_widget.clear()
+                for bbox in self.image_annotations[image_file]:
+                    self.bbox_list_widget.addItem(bbox)
+                    splited_string = [s.strip() for s in bbox.replace('(', '').replace(')', '').split(',')]
+                    if len(splited_string) == 4:
+                        x, y, w, h = map(int, splited_string)
+                        rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'id': None, 'focus': False}
+                    else:
+                        x, y, w, h = map(int, splited_string[:-1])
+                        rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'id': splited_string[-1], 'focus': False}
+                    self.image_label.rectangles.append(rect)
+
+            else:
+                self.bbox_list_widget.clear()
 
 
     def browse_folder(self):
@@ -321,6 +356,7 @@ class MainWindow(QMainWindow):
 
 
     def previous_image(self):
+        logger.info(f"image_files: {self.image_files} (previous_image)")
         if self.image_files:
             self.image_annotations[self.image_files[self.current_image_index]] = [self.bbox_list_widget.item(i).text() for i in range(self.bbox_list_widget.count())]
         if self.image_files and self.current_image_index > 0:
@@ -378,39 +414,6 @@ class MainWindow(QMainWindow):
                     else:
                         self.image_annotations[file].append(f"({left}, {top}, {width}, {height}), {id_}")
             self.load_image()
-
-
-    def load_image(self):
-        import cv2
-        self.image_label.clicked_rect_index = []
-        if self.image_files:
-            image_file = self.image_files[self.current_image_index]
-            logger.info(f'image loaded: {image_file}')
-            if image_file is not None:
-                assert os.path.exists(os.path.join(self.image_dir, image_file)), f"Image file {image_file} does not exist"
-                img = cv2.imread(os.path.join(self.image_dir, image_file))
-                org_size_h, org_size_w, _ = img.shape
-                self.img_size_width_height = (org_size_w, org_size_h)
-            self.file_label.setText(f"Current file: {image_file}")
-            pixmap = QPixmap(os.path.join(self.image_dir, image_file))
-            scaled_pixmap = pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio) 
-            self.image_label.setPixmap(scaled_pixmap)
-            self.image_label.rectangles.clear() # Clear the rectangles list when a new image is loaded
-            if image_file in self.image_annotations:
-                self.bbox_list_widget.clear()
-                for bbox in self.image_annotations[image_file]:
-                    self.bbox_list_widget.addItem(bbox)
-                    splited_string = [s.strip() for s in bbox.replace('(', '').replace(')', '').split(',')]
-                    if len(splited_string) == 4:
-                        x, y, w, h = map(int, splited_string)
-                        rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'id': None, 'focus': False}
-                    else:
-                        x, y, w, h = map(int, splited_string[:-1])
-                        rect = {'min_xy': QPoint(x, y), 'max_xy':QPoint(x + w, y + h), 'id': splited_string[-1], 'focus': False}
-                    self.image_label.rectangles.append(rect)
-
-            else:
-                self.bbox_list_widget.clear()
 
 
     def run_detector(self):
@@ -677,9 +680,31 @@ def sort_key(path):
     current_path = os.path.basename(path)
     if '_' in current_path:
         numbering = current_path.split('_')[-1]
-        return int(numbering.replace('.png', ''))
+        _, extension = os.path.splitext(numbering)
+        if extension == '.png':
+            numbering = numbering.replace('.png', '')
+        else:
+            numbering = numbering.replace('.jpg', '')
+        return int(numbering)
     else:
-        return int(os.path.basename(path).replace('frame', '').replace('.png', ''))
+        _, extension = os.path.splitext(path)
+        if extension == '.png':
+            return int(os.path.basename(path).replace('frame', '').replace('.png', ''))
+        else:
+            return int(os.path.basename(path).replace('frame', '').replace('.jpg', ''))
+
+def import_yaml(flag_key_number=True):
+    with open('yolo_cls_config.yaml', 'r') as file:
+        data = yaml.safe_load(file)
+
+    last_key = list(data.keys())[-1]
+    data[last_key+1] = 'invalid'
+
+    if flag_key_number == False:
+        #swap key and value
+        data = {value: key for key, value in data.items()}
+
+    return data
 
 
 if __name__ == "__main__":

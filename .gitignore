@@ -4,4 +4,6 @@ samples/
 old_files/
 annotations*
 __pycache__/
+*.png
+*.jpg
 *.log
